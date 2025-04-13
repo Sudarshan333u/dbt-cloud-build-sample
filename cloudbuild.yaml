@@ -1,0 +1,18 @@
+steps:
+  # Install dependencies
+  - name: 'gcr.io/cloud-builders/python'
+    args:
+      - 'pip'
+      - 'install'
+      - '-r'
+      - 'requirements.txt'
+
+  
+
+  # Run dbt
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'dbt'
+      - 'run'
+    dir: 'dbt_sample_project'
+  
