@@ -31,7 +31,7 @@ steps:
 
 availableSecrets:
   secretManager:
-    - versionName: "projects/earnest-beacon-455013-n6/secrets/test2/versions/latest"
+    - versionName: "projects/195563638104/secrets/test2/versions/latest"
       env: "DUMMY"
 options:
   logging: CLOUD_LOGGING_ONLY
