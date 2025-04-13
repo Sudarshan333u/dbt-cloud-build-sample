@@ -15,4 +15,5 @@ steps:
       - 'dbt'
       - 'run'
     dir: 'dbt_sample_project'
-  
+options:
+  logging: CLOUD_LOGGING_ONLY
