@@ -10,7 +10,7 @@ steps:
   
 
   # Run dbt
-  - name: 'gcr.io/cloud-builders/gcloud'
+  - name: 'python:3.8'
     args:
       - 'dbt'
       - 'run'
