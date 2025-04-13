@@ -1,18 +1,16 @@
 steps:
-  # Step 1: Install dbt, fetch secret, create key file & profiles.yml, run dbt
   - name: 'python:3.8'
     dir: 'dbt_sample_project'
     entrypoint: 'sh'
+    secretEnv: ['DBT_KEY_JSON']
     args:
       - '-c'
       - |
         pip install dbt-bigquery
         mkdir -p /builder/home/.dbt
 
-        # Download key from Secret Manager and write to file
-        gcloud secrets versions access latest --secret=test2 > sa-key.json
+        echo "$DBT_KEY_JSON" > sa-key.json  # Safely write secret to file
 
-        # Create profiles.yml dynamically
         echo "
         dbt_sample_project:
           target: prod
@@ -27,8 +25,14 @@ steps:
               timeout_seconds: 300
         " > /builder/home/.dbt/profiles.yml
 
+        echo "Starting dbt run"
+        dbt debug --profiles-dir /builder/home/.dbt
         dbt run --profiles-dir /builder/home/.dbt
 
+availableSecrets:
+  secretManager:
+    - versionName: "projects/195563638104/secrets/test2/versions/latest"
+      env: "DBT_KEY_JSON"
 
 options:
   logging: CLOUD_LOGGING_ONLY
