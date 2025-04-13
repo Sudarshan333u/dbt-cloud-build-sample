@@ -1,6 +1,6 @@
 steps:
   # Install dependencies
-  - name: 'gcr.io/cloud-builders/python'
+  - name: 'python:3.8'
     args:
       - 'pip'
       - 'install'
