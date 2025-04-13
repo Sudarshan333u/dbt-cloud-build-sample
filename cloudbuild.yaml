@@ -29,9 +29,6 @@ steps:
 
         dbt run --profiles-dir /builder/home/.dbt
 
-availableSecrets:
-  secretManager:
-    - versionName: "projects/195563638104/secrets/test2/versions/latest"
-      env: "DUMMY"
+
 options:
   logging: CLOUD_LOGGING_ONLY
