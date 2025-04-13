@@ -2,14 +2,14 @@ steps:
   - name: 'python:3.8'
     dir: 'dbt_sample_project'
     entrypoint: 'sh'
-    secretEnv: ['DBT_KEY_JSON']
+    secretEnv: ['_DBT_KEY_JSON']
     args:
       - '-c'
       - |
         pip install dbt-bigquery
         mkdir -p /builder/home/.dbt
 
-        echo "$DBT_KEY_JSON" > sa-key.json  # Safely write secret to file
+        echo "$_DBT_KEY_JSON" > sa-key.json
 
         echo "
         dbt_sample_project:
@@ -25,14 +25,13 @@ steps:
               timeout_seconds: 300
         " > /builder/home/.dbt/profiles.yml
 
-        echo "Starting dbt run"
         dbt debug --profiles-dir /builder/home/.dbt
         dbt run --profiles-dir /builder/home/.dbt
 
 availableSecrets:
   secretManager:
     - versionName: "projects/195563638104/secrets/test2/versions/latest"
-      env: "DBT_KEY_JSON"
+      env: "_DBT_KEY_JSON"
 
 options:
   logging: CLOUD_LOGGING_ONLY
