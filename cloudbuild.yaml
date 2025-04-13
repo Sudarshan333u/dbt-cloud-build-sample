@@ -1,19 +1,14 @@
 steps:
-  # Install dependencies
+  # Install dependencies and dbt, then run dbt in the same step
   - name: 'python:3.8'
     args:
-      - 'pip'
-      - 'install'
-      - '-r'
-      - 'requirements.txt'
+      - 'sh'
+      - '-c'
+      - |
+        pip install -r requirements.txt   # Install requirements
+        pip install dbt-bigquery          # Install dbt explicitly
+        cd dbt_sample_project             # Change directory to the dbt project directory
+        dbt run                           # Run dbt command
 
-  
-
-  # Run dbt
-  - name: 'python:3.8'
-    args:
-      - 'dbt'
-      - 'run'
-    dir: 'dbt_sample_project'
 options:
   logging: CLOUD_LOGGING_ONLY
