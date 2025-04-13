@@ -1,14 +1,35 @@
 steps:
-  # Install dependencies and dbt, then run dbt in the same step
+  # Step 1: Install dbt, fetch secret, create key file & profiles.yml, run dbt
   - name: 'python:3.8'
+    dir: 'dbt_sample_project'
+    entrypoint: 'sh'
     args:
-      - 'sh'
       - '-c'
       - |
-        pip install -r requirements.txt   # Install requirements
-        pip install dbt-bigquery          # Install dbt explicitly
-        cd dbt_sample_project             # Change directory to the dbt project directory
-        dbt run                           # Run dbt command
+        pip install dbt-bigquery
+        mkdir -p /builder/home/.dbt
 
-options:
-  logging: CLOUD_LOGGING_ONLY
+        # Download key from Secret Manager and write to file
+        gcloud secrets versions access latest --secret=test2 > sa-key.json
+
+        # Create profiles.yml dynamically
+        echo "
+        dbt_sample_project:
+          target: prod
+          outputs:
+            prod:
+              type: bigquery
+              method: service-account
+              project: earnest-beacon-455013-n6
+              dataset: dbt_sample_data
+              keyfile: /workspace/dbt_sample_project/sa-key.json
+              threads: 1
+              timeout_seconds: 300
+        " > /builder/home/.dbt/profiles.yml
+
+        dbt run --profiles-dir /builder/home/.dbt
+
+availableSecrets:
+  secretManager:
+    - versionName: "projects/earnest-beacon-455013-n6/secrets/test2/versions/latest"
+      env: "DUMMY"
