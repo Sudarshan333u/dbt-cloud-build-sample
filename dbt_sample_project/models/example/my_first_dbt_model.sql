@@ -7,7 +7,7 @@
     Try changing "table" to "view" below
 */
 
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 -- with source_data as (
 
@@ -20,7 +20,7 @@
 -- select *
 -- from source_data
 select
-    'Hello, Worldssd!' as greeting2,
+    'Hello, World champions!' as greeting_text,
     current_timestamp() as run_timestamp
 /*
     Uncomment the line below to remove records with null `id` values
