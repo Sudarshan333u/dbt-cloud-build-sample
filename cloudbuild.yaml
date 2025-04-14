@@ -9,8 +9,16 @@ steps:
         pip install dbt-bigquery
         mkdir -p /builder/home/.dbt
 
-        echo "$_DBT_KEY_JSON" > sa-key.json
+        echo "🔐 Printing secret value (first 20 lines):"
+        echo "$_DBT_KEY_JSON" | head -n 20
 
+        echo "💾 Writing secret to sa-key.json..."
+        printf "%s" "$_DBT_KEY_JSON" > sa-key.json
+
+        echo "📄 Showing first 10 lines of sa-key.json:"
+        head -n 10 sa-key.json
+
+        echo "⚙️ Writing profiles.yml..."
         echo "
         dbt_sample_project:
           target: prod
@@ -25,7 +33,10 @@ steps:
               timeout_seconds: 300
         " > /builder/home/.dbt/profiles.yml
 
+        echo "🧪 Running dbt debug..."
         dbt debug --profiles-dir /builder/home/.dbt
+
+        echo "🚀 Running dbt run..."
         dbt run --profiles-dir /builder/home/.dbt
 
 availableSecrets:
