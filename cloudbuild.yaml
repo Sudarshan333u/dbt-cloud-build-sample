@@ -6,22 +6,22 @@ steps:
     args:
       - '-c'
       - |
-        set -e  # Exit on error
+        set -e
+
+        echo "Installing dbt..."
         pip install dbt-bigquery
 
+        echo "Creating .dbt folder..."
         mkdir -p /builder/home/.dbt
 
-        echo "🔐 First 300 chars of secret (for debug):"
-        echo "${_DBT_KEY_JSON:0:300}"
-
-        echo "💾 Writing secret to sa-key.json"
+        echo "Writing service account key to sa-key.json..."
         printf "%s" "$_DBT_KEY_JSON" > sa-key.json
 
-        echo "📄 First 300 chars of sa-key.json (for debug):"
-        head -c 300 sa-key.json
+        echo "Showing first 300 characters of sa-key.json for debug:"
+        head -c 300 sa-key.json || echo "Could not read sa-key.json"
 
-        echo "⚙️ Writing profiles.yml"
-        echo '
+        echo "Writing profiles.yml..."
+        cat <<EOF > /builder/home/.dbt/profiles.yml
         dbt_sample_project:
           target: prod
           outputs:
@@ -33,12 +33,12 @@ steps:
               keyfile: /workspace/dbt_sample_project/sa-key.json
               threads: 1
               timeout_seconds: 300
-        ' > /builder/home/.dbt/profiles.yml
 
-        echo "🧪 Running dbt debug"
+
+        echo " Running dbt debug..."
         dbt debug --profiles-dir /builder/home/.dbt
 
-        echo "🚀 Running dbt run"
+        echo "Running dbt run..."
         dbt run --profiles-dir /builder/home/.dbt
 
 availableSecrets:
