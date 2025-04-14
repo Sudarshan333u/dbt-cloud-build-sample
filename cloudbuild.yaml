@@ -7,29 +7,27 @@ steps:
       - '-c'
       - |
         set -e
-
         echo "Installing dbt..."
         pip install dbt-bigquery
         echo "Creating .dbt folder..."
         mkdir -p /builder/home/.dbt
         echo "Writing service account key to sa-key.json..."
         printf "%s" "$_DBT_KEY_JSON" > sa-key.json
-        echo "Showing first 300 characters of sa-key.json for debug:"
+        echo "Showing first 300 characters of sa-key.json:"
         head -c 300 sa-key.json || echo "Could not read sa-key.json"
-        echo "Writing profiles.yml..."
-        cat <<EOF > /builder/home/.dbt/profiles.yml
-        dbt_sample_project:
-          target: prod
-          outputs:
-            prod:
-              type: bigquery
-              method: service-account
-              project: earnest-beacon-455013-n6
-              dataset: dbt_sample_data
-              keyfile: /workspace/dbt_sample_project/sa-key.json
-              threads: 1
-              timeout_seconds: 300
-        echo " Running dbt debug..."
+        echo "Writing profiles.yml using printf..."
+        printf "dbt_sample_project:\n" > /builder/home/.dbt/profiles.yml
+        printf "  target: prod\n" >> /builder/home/.dbt/profiles.yml
+        printf "  outputs:\n" >> /builder/home/.dbt/profiles.yml
+        printf "    prod:\n" >> /builder/home/.dbt/profiles.yml
+        printf "      type: bigquery\n" >> /builder/home/.dbt/profiles.yml
+        printf "      method: service-account\n" >> /builder/home/.dbt/profiles.yml
+        printf "      project: earnest-beacon-455013-n6\n" >> /builder/home/.dbt/profiles.yml
+        printf "      dataset: dbt_sample_data\n" >> /builder/home/.dbt/profiles.yml
+        printf "      keyfile: /workspace/dbt_sample_project/sa-key.json\n" >> /builder/home/.dbt/profiles.yml
+        printf "      threads: 1\n" >> /builder/home/.dbt/profiles.yml
+        printf "      timeout_seconds: 300\n" >> /builder/home/.dbt/profiles.yml
+        echo "Running dbt debug..."
         dbt debug --profiles-dir /builder/home/.dbt
         echo "Running dbt run..."
         dbt run --profiles-dir /builder/home/.dbt
