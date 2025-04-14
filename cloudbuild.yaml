@@ -1,8 +1,17 @@
 steps:
+  # Step 1: Access secret and save as file
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud secrets versions access latest --secret=test2 --project=195563638104 > /workspace/dbt_sample_project/sa-key.json
+        cat /workspace/dbt_sample_project/sa-key.json | head -n 3
+
+  # Step 2: Run dbt
   - name: 'python:3.8'
     dir: 'dbt_sample_project'
     entrypoint: 'sh'
-    secretEnv: ['_DBT_KEY_JSON']
     args:
       - '-c'
       - |
@@ -11,11 +20,7 @@ steps:
         pip install dbt-bigquery
         echo "Creating .dbt folder..."
         mkdir -p /builder/home/.dbt
-        echo "Writing service account key to sa-key.json..."
-        echo $_DBT_KEY_JSON > sa-key.json
-        echo "Validating JSON format..."
-        python -m json.tool sa-key.json > /dev/null || { echo "Invalid JSON in service account key"; exit 1; }
-        ls -la sa-key.json
+        
         echo "Writing profiles.yml..."
         cat > /builder/home/.dbt/profiles.yml << EOF
         dbt_sample_project:
@@ -30,14 +35,11 @@ steps:
               threads: 1
               timeout_seconds: 300
         EOF
+        
         echo "Running dbt debug..."
         dbt debug --profiles-dir /builder/home/.dbt
         echo "Running dbt run..."
         dbt run --profiles-dir /builder/home/.dbt
-availableSecrets:
-  secretManager:
-    - versionName: "projects/195563638104/secrets/test2/versions/latest"
-      env: "_DBT_KEY_JSON"
 
 options:
   logging: CLOUD_LOGGING_ONLY
