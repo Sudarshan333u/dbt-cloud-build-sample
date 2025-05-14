@@ -50,25 +50,7 @@ steps:
         echo "$ACCESS_TOKEN" > /workspace/drive_token.txt
         mkdir -p /workspace/.dbt/
 
-        cat > /workspace/.dbt/profiles.yml.template <<EOF
-        default:
-          outputs:
-            dev:
-              type: bigquery
-              method: oauth
-              token: \$ACCESS_TOKEN
-              project: \$PROJECT_ID
-              dataset: dbt_dataset
-              threads: 4
-              timeout_seconds: 300
-          target: dev
-        EOF
-
-        export ACCESS_TOKEN PROJECT_ID
-        envsubst < /workspace/.dbt/profiles.yml.template > /workspace/.dbt/profiles.yml
-        echo "Final profiles.yml:"
-        cat /workspace/.dbt/profiles.yml
-
+        
   - id: "DBT Check"
     name: "python:3.11-slim"
     entrypoint: sh
