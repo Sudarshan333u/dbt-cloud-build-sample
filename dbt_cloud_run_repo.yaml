@@ -45,46 +45,33 @@ steps:
           "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$(cat /workspace/service_account.txt):generateAccessToken" \
           | jq -r '.accessToken' > /workspace/drive_token.txt
         
-        # Print token for debugging (first few characters only for security)
-        echo "Token generated. First 10 characters: $(head -c 300 /workspace/drive_token.txt)..."
+        # Print token for debugging
+        echo "Token generated. ENTIRE TOKEN:"
+        cat /workspace/drive_token.txt
         
         # Test the token by making a Drive API call
         echo "Testing token with Drive API..."
         curl -s -H "Authorization: Bearer $(cat /workspace/drive_token.txt)" "https://www.googleapis.com/drive/v3/files?pageSize=1" | jq .
         
-        # Create profiles.yml
+        # Create profiles.yml with correct indentation
         mkdir -p /workspace/.dbt/
         
-        # Create profiles with environment variable substitution - include both default and dbt_sample_project profiles
-        echo "Creating profiles.yml..."
-        echo "default:
-        outputs:
-          dev:
-            type: bigquery
-            method: oauth
-            token: \"$(cat /workspace/drive_token.txt)\"
-            project: \"$_GOOGLE_CLOUD_PROJECT\"
-            dataset: dbt_dataset
-            threads: 4
-            timeout_seconds: 300
-        target: dev
-
-        dbt_sample_project:
-        outputs:
-          dev:
-            type: bigquery
-            method: oauth
-            token: \"$(cat /workspace/drive_token.txt)\"
-            project: \"$_GOOGLE_CLOUD_PROJECT\"
-            dataset: dbt_dataset
-            threads: 4
-            timeout_seconds: 300
-        target: dev" > /workspace/.dbt/profiles.yml
-              
-        echo "Profile created successfully."
-        echo "For troubleshooting, here's the profiles.yml with token redacted:"
-        cat /workspace/.dbt/profiles.yml | sed 's/token: "[^"]*"/token: "REDACTED"/g'
+        # Write profile file line by line with proper indentation
+        echo "dbt_sample_project:" > /workspace/.dbt/profiles.yml
+        echo "  outputs:" >> /workspace/.dbt/profiles.yml
+        echo "    dev:" >> /workspace/.dbt/profiles.yml
+        echo "      type: bigquery" >> /workspace/.dbt/profiles.yml
+        echo "      method: oauth" >> /workspace/.dbt/profiles.yml
+        echo "      token: \"$(cat /workspace/drive_token.txt)\"" >> /workspace/.dbt/profiles.yml
+        echo "      project: \"$_GOOGLE_CLOUD_PROJECT\"" >> /workspace/.dbt/profiles.yml
+        echo "      dataset: dbt_dataset" >> /workspace/.dbt/profiles.yml
+        echo "      threads: 4" >> /workspace/.dbt/profiles.yml
+        echo "      timeout_seconds: 300" >> /workspace/.dbt/profiles.yml
+        echo "  target: dev" >> /workspace/.dbt/profiles.yml
         
+        echo "Profile created successfully."
+        echo "Full profiles.yml content:"
+        cat /workspace/.dbt/profiles.yml
 
   - id: "Check dbt Project Config"
     name: "python:3.11-slim"
@@ -113,6 +100,8 @@ steps:
         . .venv/bin/activate
         apt-get update && apt-get install -y git
         dbt --version
+        echo "Contents of profiles.yml before running dbt:"
+        cat /workspace/.dbt/profiles.yml
         dbt deps --profile dbt_sample_project
         dbt compile --profile dbt_sample_project
         dbt debug --profile dbt_sample_project
