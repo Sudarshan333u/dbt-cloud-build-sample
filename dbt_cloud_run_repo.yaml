@@ -30,7 +30,7 @@ steps:
         PROJECT_ID="$_GOOGLE_CLOUD_PROJECT"
         echo "Project ID: $PROJECT_ID"
 
-        ACCESS_TOKEN=$(curl -s -X POST \
+        RET=$(curl -s -X POST \
           -H "Authorization: Bearer $(gcloud auth print-access-token)" \
           -H "Content-Type: application/json" \
           -d '{
@@ -41,6 +41,7 @@ steps:
           }' \
           "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$SERVICE_ACCOUNT:generateAccessToken" \
           | jq -r '.accessToken')
+        echo "Using service account: $RET"
 
        
         
