@@ -67,7 +67,7 @@ steps:
         echo "      type: bigquery" >> /workspace/.dbt/profiles.yml
         echo "      method: oauth" >> /workspace/.dbt/profiles.yml
         echo "      project: \"$_GOOGLE_CLOUD_PROJECT\"" >> /workspace/.dbt/profiles.yml
-        echo "      dataset: dbt_dataset" >> /workspace/.dbt/profiles.yml
+        echo "      dataset: dbt_sample_data" >> /workspace/.dbt/profiles.yml
         echo "      threads: 4" >> /workspace/.dbt/profiles.yml
         echo "      timeout_seconds: 300" >> /workspace/.dbt/profiles.yml
         echo "  target: dev" >> /workspace/.dbt/profiles.yml
