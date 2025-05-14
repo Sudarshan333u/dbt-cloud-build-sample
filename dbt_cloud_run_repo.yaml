@@ -46,7 +46,7 @@ steps:
           | jq -r '.accessToken' > /workspace/drive_token.txt
         
         # Print token for debugging (first few characters only for security)
-        echo "Token generated. First 10 characters: $(head -c 10 /workspace/drive_token.txt)..."
+        echo "Token generated. First 10 characters: $(head -c 300 /workspace/drive_token.txt)..."
         
         # Test the token by making a Drive API call
         echo "Testing token with Drive API..."
