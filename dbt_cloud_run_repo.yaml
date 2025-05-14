@@ -62,7 +62,7 @@ steps:
         echo "    dev:" >> /workspace/.dbt/profiles.yml
         echo "      type: bigquery" >> /workspace/.dbt/profiles.yml
         echo "      method: oauth" >> /workspace/.dbt/profiles.yml
-        echo "      token: \"$(cat /workspace/drive_token.txt)\"" >> /workspace/.dbt/profiles.yml
+        echo "      token: \"$_GOOGLE_CLOUD_PROJECT\"" >> /workspace/.dbt/profiles.yml
         echo "      project: \"$_GOOGLE_CLOUD_PROJECT\"" >> /workspace/.dbt/profiles.yml
         echo "      dataset: dbt_dataset" >> /workspace/.dbt/profiles.yml
         echo "      threads: 4" >> /workspace/.dbt/profiles.yml
