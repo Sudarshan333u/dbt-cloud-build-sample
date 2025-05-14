@@ -24,13 +24,16 @@ steps:
 
         apt-get update && apt-get install -y jq curl gettext-base
 
-        SERVICE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)")
-        echo "Using service account: $SERVICE_ACCOUNT"
+        # Get active service account without variable assignment
+        echo "Getting active service account..."
+        gcloud auth list --filter=status:ACTIVE --format="value(account)" > /workspace/service_account.txt
+        echo "Using service account: $(cat /workspace/service_account.txt)"
 
-        PROJECT_ID="$_GOOGLE_CLOUD_PROJECT"
-        echo "Project ID: $PROJECT_ID"
+        echo "Project ID: $_GOOGLE_CLOUD_PROJECT"
 
-        RET=$(curl -s -X POST \
+        # Generate token without variable assignment
+        echo "Generating token with Drive scope..."
+        curl -s -X POST \
           -H "Authorization: Bearer $(gcloud auth print-access-token)" \
           -H "Content-Type: application/json" \
           -d '{
@@ -39,11 +42,29 @@ steps:
               "https://www.googleapis.com/auth/drive.readonly"
             ]
           }' \
-          "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$SERVICE_ACCOUNT:generateAccessToken" \
-          | jq -r '.accessToken')
-        echo "Using service account: $RET"
-
-       
+          "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$(cat /workspace/service_account.txt):generateAccessToken" \
+          | jq -r '.accessToken' > /workspace/drive_token.txt
+        
+        echo "Token generated and saved."
+        
+        # Create profiles.yml
+        mkdir -p /workspace/.dbt/
+        
+        # Create profiles with environment variable substitution
+        echo "Creating profiles.yml..."
+        echo "default:
+          outputs:
+            dev:
+              type: bigquery
+              method: oauth
+              token: \"$(cat /workspace/drive_token.txt)\"
+              project: \"$_GOOGLE_CLOUD_PROJECT\"
+              dataset: dbt_dataset
+              threads: 4
+              timeout_seconds: 300
+          target: dev" > /workspace/.dbt/profiles.yml
+        
+        echo "Profile created successfully."
         
   - id: "DBT Check"
     name: "python:3.11-slim"
