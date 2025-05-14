@@ -33,13 +33,15 @@ steps:
       
       # Create a profiles override with the token
       mkdir -p /workspace/.dbt/
-      cat > /workspace/.dbt/profiles.yml <<EOF
+      
+      # Create the profiles.yml file with project from substitution
+      echo "Creating profiles.yml file..."
+      cat > /workspace/.dbt/profiles.yml <<'EOF'
       default:
         outputs:
           dev:
             type: bigquery
             method: oauth
-            token: "$ACCESS_TOKEN"
             project: $_GOOGLE_CLOUD_PROJECT
             dataset: dbt_dataset
             threads: 4
@@ -47,11 +49,17 @@ steps:
         target: dev
       EOF
       
+      # Replace the placeholder with the actual value
+      sed -i "s|\$_GOOGLE_CLOUD_PROJECT|$_GOOGLE_CLOUD_PROJECT|g" /workspace/.dbt/profiles.yml
+      
       # Install jq for JSON parsing
       apt-get update -y && apt-get install -y jq
       
       # Verify the token works by testing Drive API access
       curl -s -H "Authorization: Bearer $ACCESS_TOKEN" https://www.googleapis.com/drive/v3/files?pageSize=1 | jq .
+      
+      # Success message
+      echo "Auth setup complete. Token is saved at /workspace/drive_token.txt"
 
   - id: "Check ADC"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -67,6 +75,10 @@ steps:
       # Show the token we created with Drive scope
       echo "Our custom token with Drive scope:"
       cat /workspace/drive_token.txt
+      
+      # Show the profiles.yml we created
+      echo "Profiles.yml content:"
+      cat /workspace/.dbt/profiles.yml
 
   - id: "debug workspace"
     name: 'gcr.io/cloud-builders/gcloud'
@@ -95,6 +107,10 @@ steps:
         # Set profile dir
         export DBT_PROFILES_DIR=/workspace/.dbt/
         
+        # Update the profiles.yml to include the token
+        echo "Updating profiles.yml to include token..."
+        sed -i "s/method: oauth/method: oauth\\n      token: $GOOGLE_OAUTH_TOKEN/g" /workspace/.dbt/profiles.yml
+        
         dbt --version
         dbt deps
         dbt compile
@@ -118,13 +134,13 @@ steps:
         fi
         export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
         
-        # Read the token from the file created in the previous step
+        # Read the token but we don't need to update the profiles.yml again
         export GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)
         
         # Set profile dir
         export DBT_PROFILES_DIR=/workspace/.dbt/
         
-        echo "Would execute here"
+        echo "Running dbt..."
         pwd
         dbt deps
         dbt run
