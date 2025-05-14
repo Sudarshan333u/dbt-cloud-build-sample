@@ -47,6 +47,9 @@ steps:
         target: dev
       EOF
       
+      # Install jq for JSON parsing
+      apt-get update -y && apt-get install -y jq
+      
       # Verify the token works by testing Drive API access
       curl -s -H "Authorization: Bearer $ACCESS_TOKEN" https://www.googleapis.com/drive/v3/files?pageSize=1 | jq .
 
@@ -75,9 +78,6 @@ steps:
   - id: "DBT Check"
     name: "python:3.11-slim"
     entrypoint: sh
-    env:
-      - 'DBT_PROFILES_DIR=/workspace/.dbt/'
-      - 'GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)'
     args:
       - "-c"
       - |
@@ -88,6 +88,13 @@ steps:
           exit 1
         fi
         export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
+        
+        # Read the token from the file created in the previous step
+        export GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)
+        
+        # Set profile dir
+        export DBT_PROFILES_DIR=/workspace/.dbt/
+        
         dbt --version
         dbt deps
         dbt compile
@@ -100,9 +107,6 @@ steps:
   - id: "DBT Run Raw"
     name: "python:3.11-slim"
     entrypoint: sh
-    env:
-      - 'DBT_PROFILES_DIR=/workspace/.dbt/'
-      - 'GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)'
     args:
       - "-c"
       - |
@@ -113,6 +117,13 @@ steps:
           exit 1
         fi
         export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
+        
+        # Read the token from the file created in the previous step
+        export GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)
+        
+        # Set profile dir
+        export DBT_PROFILES_DIR=/workspace/.dbt/
+        
         echo "Would execute here"
         pwd
         dbt deps
@@ -129,3 +140,4 @@ substitutions:
   _GOOGLE_CLOUD_PROJECT: "earnest-beacon-455013-n6"
 #  _DBT_DATASET: "hydrated_us"
 
+serviceAccount: '195563638104-compute@developer.gserviceaccount.com'
