@@ -14,6 +14,16 @@ steps:
     volumes:
       - name: virtual_env
         path: /.venv
+  - id: "Check ADC"
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+    - "-c"
+    - |
+      echo "Checking ADC (Application Default Credentials)..."
+      gcloud auth application-default print-access-token || echo "No ADC found"
+      echo "Active account:"
+      gcloud auth list
 
   - id: "debug workspace"
     name: 'gcr.io/cloud-builders/gcloud'
