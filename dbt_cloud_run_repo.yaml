@@ -85,25 +85,6 @@ steps:
         echo "For troubleshooting, here's the profiles.yml with token redacted:"
         cat /workspace/.dbt/profiles.yml | sed 's/token: "[^"]*"/token: "REDACTED"/g'
         
-  - id: "Check Authentication"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-    entrypoint: "bash"
-    args:
-      - "-c"
-      - |
-        echo "Checking ADC (Application Default Credentials)..."
-        gcloud auth application-default print-access-token || echo "No ADC found"
-        
-        echo "Active account:"
-        gcloud auth list
-        
-        echo "Comparing standard token vs Drive-scoped token:"
-        echo "Standard token (first 10 chars): $(gcloud auth print-access-token | head -c 10)..."
-        echo "Drive-scoped token (first 10 chars): $(head -c 10 /workspace/drive_token.txt)..."
-        
-        # Test token again with Drive API
-        echo "Testing token with Drive API again:"
-        curl -s -H "Authorization: Bearer $(cat /workspace/drive_token.txt)" "https://www.googleapis.com/drive/v3/files?pageSize=1" | jq .
 
   - id: "Check dbt Project Config"
     name: "python:3.11-slim"
