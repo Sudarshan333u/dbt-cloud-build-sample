@@ -27,7 +27,6 @@ steps:
     entrypoint: sh
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
-      - 'DBT_DATASET=raw_us'
     args:
       - "-c"
       - |
@@ -52,7 +51,6 @@ steps:
     entrypoint: sh
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
-      - 'DBT_DATASET=raw_us'
     args:
       - "-c"
       - |
