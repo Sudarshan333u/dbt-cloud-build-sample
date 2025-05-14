@@ -53,6 +53,10 @@ steps:
         echo "Testing token with Drive API..."
         curl -s -H "Authorization: Bearer $(cat /workspace/drive_token.txt)" "https://www.googleapis.com/drive/v3/files?pageSize=1" | jq .
         
+        # Create oauth credential file for dbt
+        mkdir -p ~/.config/gcloud/
+        echo "{\"token\": \"$(cat /workspace/drive_token.txt)\", \"refresh_token\": \"$(cat /workspace/drive_token.txt)\", \"client_id\": \"fake-client-id\", \"client_secret\": \"fake-client-secret\"}" > ~/.config/gcloud/application_default_credentials.json
+        
         # Create profiles.yml with correct indentation
         mkdir -p /workspace/.dbt/
         
@@ -62,7 +66,6 @@ steps:
         echo "    dev:" >> /workspace/.dbt/profiles.yml
         echo "      type: bigquery" >> /workspace/.dbt/profiles.yml
         echo "      method: oauth" >> /workspace/.dbt/profiles.yml
-        echo "      token: \"$_GOOGLE_CLOUD_PROJECT\"" >> /workspace/.dbt/profiles.yml
         echo "      project: \"$_GOOGLE_CLOUD_PROJECT\"" >> /workspace/.dbt/profiles.yml
         echo "      dataset: dbt_dataset" >> /workspace/.dbt/profiles.yml
         echo "      threads: 4" >> /workspace/.dbt/profiles.yml
@@ -94,11 +97,19 @@ steps:
     entrypoint: sh
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
+      - 'GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)'
+      - 'CLOUDSDK_API_ENDPOINT_OVERRIDES_IAM=https://iam.googleapis.com/'
+      - 'CLOUDSDK_AUTH_ACCESS_TOKEN_FILE=/workspace/drive_token.txt'
+      - 'GOOGLE_APPLICATION_CREDENTIALS=~/.config/gcloud/application_default_credentials.json'
     args:
       - "-c"
       - |
         . .venv/bin/activate
         apt-get update && apt-get install -y git
+        
+        # Set token as environment variable directly in the step
+        export DBT_BIGQUERY_TOKEN=$(cat /workspace/drive_token.txt)
+        
         dbt --version
         echo "Contents of profiles.yml before running dbt:"
         cat /workspace/.dbt/profiles.yml
@@ -115,10 +126,18 @@ steps:
     entrypoint: sh
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
+      - 'GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)'
+      - 'CLOUDSDK_API_ENDPOINT_OVERRIDES_IAM=https://iam.googleapis.com/'
+      - 'CLOUDSDK_AUTH_ACCESS_TOKEN_FILE=/workspace/drive_token.txt'
+      - 'GOOGLE_APPLICATION_CREDENTIALS=~/.config/gcloud/application_default_credentials.json'
     args:
       - "-c"
       - |
         . .venv/bin/activate
+        
+        # Set token as environment variable directly in the step
+        export DBT_BIGQUERY_TOKEN=$(cat /workspace/drive_token.txt)
+        
         dbt deps --profile dbt_sample_project
         dbt run --profile dbt_sample_project
     volumes:
