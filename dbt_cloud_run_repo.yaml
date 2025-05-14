@@ -45,27 +45,82 @@ steps:
           "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$(cat /workspace/service_account.txt):generateAccessToken" \
           | jq -r '.accessToken' > /workspace/drive_token.txt
         
-        echo "Token generated and saved."
+        # Print token for debugging (first few characters only for security)
+        echo "Token generated. First 10 characters: $(head -c 10 /workspace/drive_token.txt)..."
+        
+        # Test the token by making a Drive API call
+        echo "Testing token with Drive API..."
+        curl -s -H "Authorization: Bearer $(cat /workspace/drive_token.txt)" "https://www.googleapis.com/drive/v3/files?pageSize=1" | jq .
         
         # Create profiles.yml
         mkdir -p /workspace/.dbt/
         
-        # Create profiles with environment variable substitution
+        # Create profiles with environment variable substitution - include both default and dbt_sample_project profiles
         echo "Creating profiles.yml..."
         echo "default:
-          outputs:
-            dev:
-              type: bigquery
-              method: oauth
-              token: \"$(cat /workspace/drive_token.txt)\"
-              project: \"$_GOOGLE_CLOUD_PROJECT\"
-              dataset: dbt_dataset
-              threads: 4
-              timeout_seconds: 300
-          target: dev" > /workspace/.dbt/profiles.yml
-        
+        outputs:
+          dev:
+            type: bigquery
+            method: oauth
+            token: \"$(cat /workspace/drive_token.txt)\"
+            project: \"$_GOOGLE_CLOUD_PROJECT\"
+            dataset: dbt_dataset
+            threads: 4
+            timeout_seconds: 300
+        target: dev
+
+        dbt_sample_project:
+        outputs:
+          dev:
+            type: bigquery
+            method: oauth
+            token: \"$(cat /workspace/drive_token.txt)\"
+            project: \"$_GOOGLE_CLOUD_PROJECT\"
+            dataset: dbt_dataset
+            threads: 4
+            timeout_seconds: 300
+        target: dev" > /workspace/.dbt/profiles.yml
+              
         echo "Profile created successfully."
+        echo "For troubleshooting, here's the profiles.yml with token redacted:"
+        cat /workspace/.dbt/profiles.yml | sed 's/token: "[^"]*"/token: "REDACTED"/g'
         
+  - id: "Check Authentication"
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        echo "Checking ADC (Application Default Credentials)..."
+        gcloud auth application-default print-access-token || echo "No ADC found"
+        
+        echo "Active account:"
+        gcloud auth list
+        
+        echo "Comparing standard token vs Drive-scoped token:"
+        echo "Standard token (first 10 chars): $(gcloud auth print-access-token | head -c 10)..."
+        echo "Drive-scoped token (first 10 chars): $(head -c 10 /workspace/drive_token.txt)..."
+        
+        # Test token again with Drive API
+        echo "Testing token with Drive API again:"
+        curl -s -H "Authorization: Bearer $(cat /workspace/drive_token.txt)" "https://www.googleapis.com/drive/v3/files?pageSize=1" | jq .
+
+  - id: "Check dbt Project Config"
+    name: "python:3.11-slim"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        echo "Checking dbt project configuration..."
+        # Look for dbt_project.yml to find the project name
+        if [ -f "dbt_project.yml" ]; then
+          echo "dbt_project.yml found. Contents:"
+          cat dbt_project.yml | grep -A1 "name:"
+        else
+          echo "dbt_project.yml not found in the root directory."
+          find /workspace -name "dbt_project.yml" -type f | xargs cat | grep -A1 "name:"
+        fi
+
   - id: "DBT Check"
     name: "python:3.11-slim"
     entrypoint: sh
@@ -77,9 +132,10 @@ steps:
         . .venv/bin/activate
         apt-get update && apt-get install -y git
         dbt --version
-        dbt deps
-        dbt debug
-        dbt ls
+        dbt deps --profile dbt_sample_project
+        dbt compile --profile dbt_sample_project
+        dbt debug --profile dbt_sample_project
+        dbt ls --profile dbt_sample_project
     volumes:
       - name: virtual_env
         path: /.venv
@@ -93,8 +149,8 @@ steps:
       - "-c"
       - |
         . .venv/bin/activate
-        dbt deps
-        dbt run
+        dbt deps --profile dbt_sample_project
+        dbt run --profile dbt_sample_project
     volumes:
       - name: virtual_env
         path: /.venv
