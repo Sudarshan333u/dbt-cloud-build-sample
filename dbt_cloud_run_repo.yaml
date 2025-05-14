@@ -1,5 +1,4 @@
 steps:
-
   - id: "Install Deps"
     name: "python:3.11-slim"
     entrypoint: sh
@@ -14,6 +13,43 @@ steps:
     volumes:
       - name: virtual_env
         path: /.venv
+
+  - id: "Setup Auth With Drive Scope"
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+    - "-c"
+    - |
+      echo "Setting up authentication with Drive scope..."
+      # Get the current service account email
+      CURRENT_SA=$(gcloud auth list --filter=status:ACTIVE --format="value(account)")
+      echo "Current service account: $CURRENT_SA"
+      
+      # Generate token with Drive scope
+      ACCESS_TOKEN=$(gcloud auth print-access-token --impersonate-service-account=$CURRENT_SA --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/drive.readonly)
+      
+      # Save the token for later steps
+      echo "$ACCESS_TOKEN" > /workspace/drive_token.txt
+      
+      # Create a profiles override with the token
+      mkdir -p /workspace/.dbt/
+      cat > /workspace/.dbt/profiles.yml <<EOF
+      default:
+        outputs:
+          dev:
+            type: bigquery
+            method: oauth
+            token: "$ACCESS_TOKEN"
+            project: $_GOOGLE_CLOUD_PROJECT
+            dataset: dbt_dataset
+            threads: 4
+            timeout_seconds: 300
+        target: dev
+      EOF
+      
+      # Verify the token works by testing Drive API access
+      curl -s -H "Authorization: Bearer $ACCESS_TOKEN" https://www.googleapis.com/drive/v3/files?pageSize=1 | jq .
+
   - id: "Check ADC"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: "bash"
@@ -24,6 +60,10 @@ steps:
       gcloud auth application-default print-access-token || echo "No ADC found"
       echo "Active account:"
       gcloud auth list
+      
+      # Show the token we created with Drive scope
+      echo "Our custom token with Drive scope:"
+      cat /workspace/drive_token.txt
 
   - id: "debug workspace"
     name: 'gcr.io/cloud-builders/gcloud'
@@ -37,6 +77,7 @@ steps:
     entrypoint: sh
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
+      - 'GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)'
     args:
       - "-c"
       - |
@@ -61,6 +102,7 @@ steps:
     entrypoint: sh
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
+      - 'GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)'
     args:
       - "-c"
       - |
@@ -71,12 +113,10 @@ steps:
           exit 1
         fi
         export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
-        echo "Would excute here"
+        echo "Would execute here"
         pwd
         dbt deps
         dbt run
-        
-  
     volumes:
       - name: virtual_env
         path: /.venv
@@ -89,4 +129,3 @@ substitutions:
   _GOOGLE_CLOUD_PROJECT: "earnest-beacon-455013-n6"
 #  _DBT_DATASET: "hydrated_us"
 
-serviceAccount: '195563638104-compute@developer.gserviceaccount.com'
