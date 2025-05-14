@@ -42,14 +42,7 @@ steps:
           "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$SERVICE_ACCOUNT:generateAccessToken" \
           | jq -r '.accessToken')
 
-        if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
-          echo "Failed to generate token"
-          exit 1
-        fi
-
-        echo "$ACCESS_TOKEN" > /workspace/drive_token.txt
-        mkdir -p /workspace/.dbt/
-
+       
         
   - id: "DBT Check"
     name: "python:3.11-slim"
