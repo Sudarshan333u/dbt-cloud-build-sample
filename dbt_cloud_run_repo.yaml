@@ -14,20 +14,22 @@ steps:
       - name: virtual_env
         path: /.venv
 
-  - id: "Generate SA Token with Drive Scope"
+  - id: "Generate Token & Build Profile"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: "bash"
     args:
       - "-c"
       - |
+        set -e
+
         apt-get update && apt-get install -y jq curl gettext-base
 
         SERVICE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)")
         echo "Using service account: $SERVICE_ACCOUNT"
 
         PROJECT_ID="$_GOOGLE_CLOUD_PROJECT"
+        echo "Project ID: $PROJECT_ID"
 
-        echo "Calling IAM API for scoped token..."
         ACCESS_TOKEN=$(curl -s -X POST \
           -H "Authorization: Bearer $(gcloud auth print-access-token)" \
           -H "Content-Type: application/json" \
@@ -41,15 +43,13 @@ steps:
           | jq -r '.accessToken')
 
         if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
-          echo "Failed to get token. Ensure SA Token Creator role is granted."
+          echo "Failed to generate token"
           exit 1
         fi
 
         echo "$ACCESS_TOKEN" > /workspace/drive_token.txt
-
         mkdir -p /workspace/.dbt/
 
-        # Write a safe template
         cat > /workspace/.dbt/profiles.yml.template <<EOF
         default:
           outputs:
@@ -66,6 +66,7 @@ steps:
 
         export ACCESS_TOKEN PROJECT_ID
         envsubst < /workspace/.dbt/profiles.yml.template > /workspace/.dbt/profiles.yml
+        echo "Final profiles.yml:"
         cat /workspace/.dbt/profiles.yml
 
   - id: "DBT Check"
@@ -77,6 +78,8 @@ steps:
       - "-c"
       - |
         . .venv/bin/activate
+        apt-get update && apt-get install -y git
+        dbt --version
         dbt deps
         dbt debug
         dbt ls
@@ -93,6 +96,7 @@ steps:
       - "-c"
       - |
         . .venv/bin/activate
+        dbt deps
         dbt run
     volumes:
       - name: virtual_env
