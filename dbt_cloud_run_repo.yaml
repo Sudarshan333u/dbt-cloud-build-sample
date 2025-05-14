@@ -50,19 +50,19 @@ steps:
         mkdir -p /workspace/.dbt/
 
         # Write a safe template
-        cat > /workspace/.dbt/profiles.yml.template <<EOF
-default:
-  outputs:
-    dev:
-      type: bigquery
-      method: oauth
-      token: \$ACCESS_TOKEN
-      project: \$PROJECT_ID
-      dataset: dbt_dataset
-      threads: 4
-      timeout_seconds: 300
-  target: dev
-EOF
+        cat > /workspace/.dbt/profiles.yml.template <<'EOF'
+        default:
+          outputs:
+            dev:
+              type: bigquery
+              method: oauth
+              token: $ACCESS_TOKEN
+              project: $PROJECT_ID
+              dataset: dbt_dataset
+              threads: 4
+              timeout_seconds: 300
+          target: dev
+        EOF
 
         export ACCESS_TOKEN PROJECT_ID
         envsubst < /workspace/.dbt/profiles.yml.template > /workspace/.dbt/profiles.yml
