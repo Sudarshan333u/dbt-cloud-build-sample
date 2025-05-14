@@ -18,24 +18,17 @@ steps:
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: "bash"
     args:
-    - "-c"
-    - |
+      - "-c"
+      - |
         echo "Generating service account token with Drive scope..."
-        
-        # Install jq for JSON processing
         apt-get update && apt-get install -y jq curl
-        
-        # Get the current service account
+
         SERVICE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)")
         echo "Active service account: $SERVICE_ACCOUNT"
-        
-        # Get project ID from substitution
+
         PROJECT_ID="$_GOOGLE_CLOUD_PROJECT"
         echo "Project ID: $PROJECT_ID"
-        
-        # Generate JWT token with the required scopes
-        # This approach uses the IAM Service Account Credentials API
-        
+
         echo "Generating token with IAM API..."
         TOKEN=$(curl -s -X POST \
           -H "Authorization: Bearer $(gcloud auth print-access-token)" \
@@ -48,50 +41,39 @@ steps:
           }" \
           "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$SERVICE_ACCOUNT:generateAccessToken" \
           | jq -r '.accessToken')
-        
+
         if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
           echo "Failed to generate token with Drive scope."
-          echo "Make sure the service account has the Service Account Token Creator role."
-          echo "And the Cloud Build service account has permission to call the IAM API."
           exit 1
         fi
-        
-        echo "Successfully generated token with Drive scope."
-        
-        # Save token to file
+
         echo "$TOKEN" > /workspace/drive_token.txt
-        
-        # Create profiles.yml file
         mkdir -p /workspace/.dbt/
         echo "default:" > /workspace/.dbt/profiles.yml
         echo "  outputs:" >> /workspace/.dbt/profiles.yml
         echo "    dev:" >> /workspace/.dbt/profiles.yml
         echo "      type: bigquery" >> /workspace/.dbt/profiles.yml
         echo "      method: oauth" >> /workspace/.dbt/profiles.yml
-        echo "      token: \"$TOKEN\"" >> /workspace/.dbt/profiles.yml
+        echo "      token: \"\$TOKEN\"" >> /workspace/.dbt/profiles.yml  # <- escaped properly
         echo "      project: $PROJECT_ID" >> /workspace/.dbt/profiles.yml
         echo "      dataset: dbt_dataset" >> /workspace/.dbt/profiles.yml
         echo "      threads: 4" >> /workspace/.dbt/profiles.yml
         echo "      timeout_seconds: 300" >> /workspace/.dbt/profiles.yml
         echo "  target: dev" >> /workspace/.dbt/profiles.yml
-        
-        echo "Created profiles.yml with Drive-scoped token."
 
   - id: "Check ADC"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: "bash"
     args:
-    - "-c"
-    - |
-      echo "Checking ADC (Application Default Credentials)..."
-      gcloud auth application-default print-access-token || echo "No ADC found"
-      echo "Active account:"
-      gcloud auth list
-      
-      # Test the token with Drive API
-      echo "Testing token with Drive API..."
-      TOKEN=$(cat /workspace/drive_token.txt)
-      curl -s -H "Authorization: Bearer $TOKEN" "https://www.googleapis.com/drive/v3/files?pageSize=1" | jq .
+      - "-c"
+      - |
+        echo "Checking ADC..."
+        gcloud auth application-default print-access-token || echo "No ADC found"
+        echo "Active account:"
+        gcloud auth list
+        echo "Testing Drive access..."
+        TOKEN=$(cat /workspace/drive_token.txt)
+        curl -s -H "Authorization: Bearer $TOKEN" "https://www.googleapis.com/drive/v3/files?pageSize=1" | jq .
 
   - id: "debug workspace"
     name: 'gcr.io/cloud-builders/gcloud'
@@ -114,7 +96,6 @@ steps:
           echo "No project id provided. Please set the _GOOGLE_CLOUD_PROJECT substitution variable."
           exit 1
         fi
-        export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
         dbt --version
         dbt deps
         dbt compile
@@ -138,9 +119,7 @@ steps:
           echo "No project id provided. Please set the _GOOGLE_CLOUD_PROJECT substitution variable."
           exit 1
         fi
-        export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
         echo "Would execute here"
-        pwd
         dbt deps
         dbt run
     volumes:
@@ -153,4 +132,3 @@ options:
 
 substitutions:
   _GOOGLE_CLOUD_PROJECT: "earnest-beacon-455013-n6"
-
