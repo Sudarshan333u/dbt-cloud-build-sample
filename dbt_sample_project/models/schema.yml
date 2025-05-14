@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: dbt_sample_data
+    database: earnest-beacon-455013-n6
+    schema: dbt_sample_data
+    tables:
+      - name: my_first_dbt_model

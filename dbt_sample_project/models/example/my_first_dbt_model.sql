@@ -1,29 +1,9 @@
-
-/*
-    Welcome to your first dbt model!
-    Did you know that you can also configure models directly within SQL files?
-    This will override configurations stated in dbt_project.yml
-
-    Try changing "table" to "view" below
-*/
+-- models/my_first_dbt_model.sql
 
 {{ config(materialized='table') }}
-
--- with source_data as (
-
---     select 1 as id
---     union all
---     select null as id
-
--- )
-
--- select *
--- from source_data
-select
-    'Hello, World champions!' as greeting_text,
-    current_timestamp() as run_timestamp
-/*
-    Uncomment the line below to remove records with null `id` values
-*/
-
--- where id is not null
+SELECT
+  greeting_text,
+  run_timestamp
+FROM {{ source('dbt_sample_data', 'my_first_dbt_model') }}
+WHERE
+  greeting_text IS NOT NULL
