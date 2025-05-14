@@ -5,4 +5,4 @@ sources:
     database: earnest-beacon-455013-n6
     schema: dbt_sample_data
     tables:
-      - name: my_first_dbt_model
+      - name: my_first_dbt_model2

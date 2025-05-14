@@ -1,0 +1,13 @@
+dbt_sample_project:
+  target: raw
+  outputs:
+    raw:
+      type: bigquery
+      method: oauth
+      priority: interactive
+      location: US
+      project: earnest-beacon-455013-n6
+# dataset left raw to allow for tag based selection override
+      dataset: dbt_sample_data 
+      threads: 4 
+      timeout_seconds: 360
