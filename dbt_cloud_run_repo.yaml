@@ -14,52 +14,68 @@ steps:
       - name: virtual_env
         path: /.venv
 
-  - id: "Setup Auth With Drive Scope"
+  - id: "Generate Service Account Token with Drive Scope"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: "bash"
     args:
     - "-c"
     - |
-      echo "Setting up authentication with Drive scope..."
-      # Get the current service account email
-      CURRENT_SA=$(gcloud auth list --filter=status:ACTIVE --format="value(account)")
-      echo "Current service account: $CURRENT_SA"
-      
-      # Generate token with Drive scope
-      ACCESS_TOKEN=$(gcloud auth print-access-token --impersonate-service-account=$CURRENT_SA --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/drive.readonly)
-      
-      # Save the token for later steps
-      echo "$ACCESS_TOKEN" > /workspace/drive_token.txt
-      
-      # Create a profiles override with the token
-      mkdir -p /workspace/.dbt/
-      
-      # Create the profiles.yml file with project from substitution
-      echo "Creating profiles.yml file..."
-      cat > /workspace/.dbt/profiles.yml <<'EOF'
-      default:
-        outputs:
-          dev:
-            type: bigquery
-            method: oauth
-            project: $_GOOGLE_CLOUD_PROJECT
-            dataset: dbt_dataset
-            threads: 4
-            timeout_seconds: 300
-        target: dev
-      EOF
-      
-      # Replace the placeholder with the actual value
-      sed -i "s|\$_GOOGLE_CLOUD_PROJECT|$_GOOGLE_CLOUD_PROJECT|g" /workspace/.dbt/profiles.yml
-      
-      # Install jq for JSON parsing
-      apt-get update -y && apt-get install -y jq
-      
-      # Verify the token works by testing Drive API access
-      curl -s -H "Authorization: Bearer $ACCESS_TOKEN" https://www.googleapis.com/drive/v3/files?pageSize=1 | jq .
-      
-      # Success message
-      echo "Auth setup complete. Token is saved at /workspace/drive_token.txt"
+        echo "Generating service account token with Drive scope..."
+        
+        # Install jq for JSON processing
+        apt-get update && apt-get install -y jq curl
+        
+        # Get the current service account
+        SERVICE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)")
+        echo "Active service account: $SERVICE_ACCOUNT"
+        
+        # Get project ID from substitution
+        PROJECT_ID="$_GOOGLE_CLOUD_PROJECT"
+        echo "Project ID: $PROJECT_ID"
+        
+        # Generate JWT token with the required scopes
+        # This approach uses the IAM Service Account Credentials API
+        
+        echo "Generating token with IAM API..."
+        TOKEN=$(curl -s -X POST \
+          -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+          -H "Content-Type: application/json" \
+          -d "{ 
+            \"scope\": [
+              \"https://www.googleapis.com/auth/bigquery\", 
+              \"https://www.googleapis.com/auth/drive.readonly\"
+            ]
+          }" \
+          "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$SERVICE_ACCOUNT:generateAccessToken" \
+          | jq -r '.accessToken')
+        
+        if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+          echo "Failed to generate token with Drive scope."
+          echo "Make sure the service account has the Service Account Token Creator role."
+          echo "And the Cloud Build service account has permission to call the IAM API."
+          exit 1
+        fi
+        
+        echo "Successfully generated token with Drive scope."
+        
+        # Save token to file
+        echo "$TOKEN" > /workspace/drive_token.txt
+        
+        # Create profiles.yml file
+        mkdir -p /workspace/.dbt/
+        echo "default:" > /workspace/.dbt/profiles.yml
+        echo "  outputs:" >> /workspace/.dbt/profiles.yml
+        echo "    dev:" >> /workspace/.dbt/profiles.yml
+        echo "      type: bigquery" >> /workspace/.dbt/profiles.yml
+        echo "      method: oauth" >> /workspace/.dbt/profiles.yml
+        echo "      token: \"$TOKEN\"" >> /workspace/.dbt/profiles.yml
+        echo "      project: $PROJECT_ID" >> /workspace/.dbt/profiles.yml
+        echo "      dataset: dbt_dataset" >> /workspace/.dbt/profiles.yml
+        echo "      threads: 4" >> /workspace/.dbt/profiles.yml
+        echo "      timeout_seconds: 300" >> /workspace/.dbt/profiles.yml
+        echo "  target: dev" >> /workspace/.dbt/profiles.yml
+        
+        echo "Created profiles.yml with Drive-scoped token."
 
   - id: "Check ADC"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -72,13 +88,10 @@ steps:
       echo "Active account:"
       gcloud auth list
       
-      # Show the token we created with Drive scope
-      echo "Our custom token with Drive scope:"
-      cat /workspace/drive_token.txt
-      
-      # Show the profiles.yml we created
-      echo "Profiles.yml content:"
-      cat /workspace/.dbt/profiles.yml
+      # Test the token with Drive API
+      echo "Testing token with Drive API..."
+      TOKEN=$(cat /workspace/drive_token.txt)
+      curl -s -H "Authorization: Bearer $TOKEN" "https://www.googleapis.com/drive/v3/files?pageSize=1" | jq .
 
   - id: "debug workspace"
     name: 'gcr.io/cloud-builders/gcloud'
@@ -90,6 +103,8 @@ steps:
   - id: "DBT Check"
     name: "python:3.11-slim"
     entrypoint: sh
+    env:
+      - 'DBT_PROFILES_DIR=/workspace/.dbt/'
     args:
       - "-c"
       - |
@@ -100,17 +115,6 @@ steps:
           exit 1
         fi
         export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
-        
-        # Read the token from the file created in the previous step
-        export GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)
-        
-        # Set profile dir
-        export DBT_PROFILES_DIR=/workspace/.dbt/
-        
-        # Update the profiles.yml to include the token
-        echo "Updating profiles.yml to include token..."
-        sed -i "s/method: oauth/method: oauth\\n      token: $GOOGLE_OAUTH_TOKEN/g" /workspace/.dbt/profiles.yml
-        
         dbt --version
         dbt deps
         dbt compile
@@ -123,6 +127,8 @@ steps:
   - id: "DBT Run Raw"
     name: "python:3.11-slim"
     entrypoint: sh
+    env:
+      - 'DBT_PROFILES_DIR=/workspace/.dbt/'
     args:
       - "-c"
       - |
@@ -133,14 +139,7 @@ steps:
           exit 1
         fi
         export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
-        
-        # Read the token but we don't need to update the profiles.yml again
-        export GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)
-        
-        # Set profile dir
-        export DBT_PROFILES_DIR=/workspace/.dbt/
-        
-        echo "Running dbt..."
+        echo "Would execute here"
         pwd
         dbt deps
         dbt run
@@ -154,6 +153,4 @@ options:
 
 substitutions:
   _GOOGLE_CLOUD_PROJECT: "earnest-beacon-455013-n6"
-#  _DBT_DATASET: "hydrated_us"
 
-serviceAccount: '195563638104-compute@developer.gserviceaccount.com'
