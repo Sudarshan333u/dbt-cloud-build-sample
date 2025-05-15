@@ -55,7 +55,7 @@ steps:
         
         # Create oauth credential file for dbt in workspace directory
         mkdir -p /workspace/.google/
-        echo "{\"token\": \"$(cat /workspace/drive_token.txt)\", \"refresh_token\": \"$(cat /workspace/drive_token.txt)\", \"client_id\": \"fake-client-id\", \"client_secret\": \"fake-client-secret\"}" > /workspace/.google/application_default_credentials.json
+        echo "{\"token\": \"$(cat /workspace/drive_token.txt)\", \"refresh_token\": \"$(cat /workspace/drive_token.txt)\", \"client_id\": \"fake-client-id\", \"client_secret\": \"fake-client-secret\",\"type\": \"authorized_user\"}" > /workspace/.google/application_default_credentials.json
         
         # List all files in workspace
         echo "Files in workspace directory:"
