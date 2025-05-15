@@ -1,4 +1,5 @@
 steps:
+
   - id: "Install Deps"
     name: "python:3.11-slim"
     entrypoint: sh
@@ -6,7 +7,7 @@ steps:
       - "-c"
       - |
         apt-get update -y
-        apt-get install -y git gettext-base
+        apt-get install -y git
         pip install uv
         uv venv
         uv pip install -r pyproject.toml
@@ -14,169 +15,87 @@ steps:
       - name: virtual_env
         path: /.venv
 
-  - id: "Generate Token & Build Profile"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-    entrypoint: "bash"
+  - id: "Retrieve Secret"
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: bash
     args:
       - "-c"
       - |
-        set -e
+        
+        gcloud secrets versions access latest \
+          --secret=$_SECRET_NAME \
+          --project=$_PROJECT_NUMBER > /workspace/.dbt/sa-key.json
 
-        apt-get update && apt-get install -y jq curl gettext-base
+        
 
-        # Get active service account without variable assignment
-        echo "Getting active service account..."
-        gcloud auth list --filter=status:ACTIVE --format="value(account)" > /workspace/service_account.txt
-        echo "Using service account: $(cat /workspace/service_account.txt)"
+  - id: "Patch profiles.yml"
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        echo "🔧 Updating keyfile path in profiles.yml"
+        sed -i 's|keyfile:.*|keyfile: /workspace/.dbt/sa-key.json|' /workspace/.dbt/profiles.yml || echo "⚠️ Warning: keyfile line not found to update"
 
-        echo "Project ID: $_GOOGLE_CLOUD_PROJECT"
-
-        # Generate token without variable assignment
-        echo "Generating token with Drive scope..."
-        curl -s -X POST \
-          -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-          -H "Content-Type: application/json" \
-          -d '{
-            "scope": [
-              "https://www.googleapis.com/auth/bigquery",
-              "https://www.googleapis.com/auth/drive.readonly"
-            ]
-          }' \
-          "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$(cat /workspace/service_account.txt):generateAccessToken" \
-          | jq -r '.accessToken' > /workspace/drive_token.txt
-        
-        # Print token for debugging
-        echo "Token generated. ENTIRE TOKEN:"
-        cat /workspace/drive_token.txt
-        
-        # Test the token by making a Drive API call
-        echo "Testing token with Drive API..."
-        curl -s -H "Authorization: Bearer $(cat /workspace/drive_token.txt)" "https://www.googleapis.com/drive/v3/files?pageSize=1" | jq .
-        
-        # Create oauth credential file for dbt in workspace directory
-        mkdir -p /workspace/.google/
-        echo "{\"token\": \"$(cat /workspace/drive_token.txt)\", \"refresh_token\": \"$(cat /workspace/drive_token.txt)\", \"client_id\": \"fake-client-id\", \"client_secret\": \"fake-client-secret\",\"type\": \"authorized_user\"}" > /workspace/.google/application_default_credentials.json
-        
-        # List all files in workspace
-        echo "Files in workspace directory:"
-        find /workspace -type f | sort
-        
-        # Create profiles.yml with correct indentation
-        mkdir -p /workspace/.dbt/
-        
-        # Write profile file line by line with proper indentation
-        echo "dbt_sample_project:" > /workspace/.dbt/profiles.yml
-        echo "  outputs:" >> /workspace/.dbt/profiles.yml
-        echo "    dev:" >> /workspace/.dbt/profiles.yml
-        echo "      type: bigquery" >> /workspace/.dbt/profiles.yml
-        echo "      method: oauth" >> /workspace/.dbt/profiles.yml
-        echo "      project: \"$_GOOGLE_CLOUD_PROJECT\"" >> /workspace/.dbt/profiles.yml
-        echo "      dataset: dbt_sample_data" >> /workspace/.dbt/profiles.yml
-        echo "      threads: 4" >> /workspace/.dbt/profiles.yml
-        echo "      timeout_seconds: 300" >> /workspace/.dbt/profiles.yml
-        echo "  target: dev" >> /workspace/.dbt/profiles.yml
-        
-        echo "Profile created successfully."
-        echo "Full profiles.yml content:"
+  - id: "Print profiles.yml"
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        echo "📄 Contents of profiles.yml after patching:"
         cat /workspace/.dbt/profiles.yml
 
-  - id: "Check dbt Project Config"
-    name: "python:3.11-slim"
-    entrypoint: "bash"
+  - id: "debug workspace"
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
     args:
-      - "-c"
-      - |
-        echo "Checking dbt project configuration..."
-        # Look for dbt_project.yml to find the project name
-        if [ -f "dbt_project.yml" ]; then
-          echo "dbt_project.yml found. Contents:"
-          cat dbt_project.yml | grep -A1 "name:"
-        else
-          echo "dbt_project.yml not found in the root directory."
-          find /workspace -name "dbt_project.yml" -type f | xargs cat | grep -A1 "name:" || echo "No dbt_project.yml found in workspace"
-        fi
-        
-        # List all files
-        echo "Files in workspace:"
-        find /workspace -type f | sort
-        
-        # Check ADC file
-        echo "Checking application_default_credentials.json:"
-        ls -la /workspace/.google/application_default_credentials.json
+      - '-c'
+      - 'ls -R /workspace'
 
   - id: "DBT Check"
     name: "python:3.11-slim"
-    entrypoint: "sh"
+    entrypoint: sh
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
-      - 'GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)'
-      - 'CLOUDSDK_API_ENDPOINT_OVERRIDES_IAM=https://iam.googleapis.com/'
-      - 'CLOUDSDK_AUTH_ACCESS_TOKEN_FILE=/workspace/drive_token.txt'
-      - 'GOOGLE_APPLICATION_CREDENTIALS=/workspace/.google/application_default_credentials.json'
     args:
       - "-c"
       - |
         . .venv/bin/activate
         apt-get update && apt-get install -y git
-        
-        # Set token as environment variable directly in the step
-        export DBT_BIGQUERY_TOKEN=$(cat /workspace/drive_token.txt)
-        
-        echo "Checking ADC file location:"
-        
+        if [ -z "$_GOOGLE_CLOUD_PROJECT" ]; then
+          echo "No project id provided. Please set the _GOOGLE_CLOUD_PROJECT substitution variable."
+          exit 1
+        fi
+        export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
+
         dbt --version
-        echo "Contents of profiles.yml before running dbt:"
-        cat /workspace/.dbt/profiles.yml
-        dbt deps --profile dbt_sample_project
-        dbt compile --profile dbt_sample_project
-        dbt debug --profile dbt_sample_project
-        dbt ls --profile dbt_sample_project
+        dbt deps
+        dbt compile
+        dbt debug
+        dbt ls
     volumes:
       - name: virtual_env
         path: /.venv
-  - id: "List All Files"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-    entrypoint: bash
-    args:
-      - "-c"
-      - |
-          echo "Listing files in /workspace:"
-          ls -R /workspace
 
-          echo "Listing files in home directory:"
-          ls -R ~/
-
-          echo "Listing ADC credentials if any:"
-          find / -name application_default_credentials.json 2>/dev/null
-
-  - id: "DBT Run"
+  - id: "DBT Run Raw"
     name: "python:3.11-slim"
-    entrypoint: "sh"
+    entrypoint: sh
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
-      - 'GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)'
-      - 'CLOUDSDK_API_ENDPOINT_OVERRIDES_IAM=https://iam.googleapis.com/'
-      - 'CLOUDSDK_AUTH_ACCESS_TOKEN_FILE=/workspace/drive_token.txt'
-      - 'GOOGLE_APPLICATION_CREDENTIALS=/workspace/.google/application_default_credentials.json'
     args:
       - "-c"
       - |
         . .venv/bin/activate
-        
-        # Set token as environment variable directly in the step
-        export DBT_BIGQUERY_TOKEN=$(cat /workspace/drive_token.txt)
-        
-        # List all files for debugging
-        echo "Files in workspace:"
-        find /workspace -type f | sort
-        
-        echo "Files in current directory:"
-        ls -la
-        
-        echo "Checking ADC file existence:"
-        
-        dbt deps --profile dbt_sample_project
-        dbt run --profile dbt_sample_project
+        apt-get update && apt-get install -y git
+        if [ -z "$_GOOGLE_CLOUD_PROJECT" ]; then
+          echo "No project id provided. Please set the _GOOGLE_CLOUD_PROJECT substitution variable."
+          exit 1
+        fi
+        export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
+
+        dbt deps
+        dbt run
     volumes:
       - name: virtual_env
         path: /.venv
@@ -187,3 +106,5 @@ options:
 
 substitutions:
   _GOOGLE_CLOUD_PROJECT: "earnest-beacon-455013-n6"
+  _SECRET_NAME: "test2"
+  _PROJECT_NUMBER: "195563638104"
