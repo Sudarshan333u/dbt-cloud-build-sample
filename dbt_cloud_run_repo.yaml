@@ -53,9 +53,13 @@ steps:
         echo "Testing token with Drive API..."
         curl -s -H "Authorization: Bearer $(cat /workspace/drive_token.txt)" "https://www.googleapis.com/drive/v3/files?pageSize=1" | jq .
         
-        # Create oauth credential file for dbt
-        mkdir -p ~/.config/gcloud/
-        echo "{\"token\": \"$(cat /workspace/drive_token.txt)\", \"refresh_token\": \"$(cat /workspace/drive_token.txt)\", \"client_id\": \"fake-client-id\", \"client_secret\": \"fake-client-secret\"}" > ~/.config/gcloud/application_default_credentials.json
+        # Create oauth credential file for dbt in workspace directory
+        mkdir -p /workspace/.google/
+        echo "{\"token\": \"$(cat /workspace/drive_token.txt)\", \"refresh_token\": \"$(cat /workspace/drive_token.txt)\", \"client_id\": \"fake-client-id\", \"client_secret\": \"fake-client-secret\"}" > /workspace/.google/application_default_credentials.json
+        
+        # List all files in workspace
+        echo "Files in workspace directory:"
+        find /workspace -type f | sort
         
         # Create profiles.yml with correct indentation
         mkdir -p /workspace/.dbt/
@@ -89,18 +93,30 @@ steps:
           cat dbt_project.yml | grep -A1 "name:"
         else
           echo "dbt_project.yml not found in the root directory."
-          find /workspace -name "dbt_project.yml" -type f | xargs cat | grep -A1 "name:"
+          find /workspace -name "dbt_project.yml" -type f | xargs cat | grep -A1 "name:" || echo "No dbt_project.yml found in workspace"
         fi
+        
+        # Create home directory config files
+        echo "Creating ADC file in home directory..."
+        mkdir -p $HOME/.config/gcloud/
+        cp /workspace/.google/application_default_credentials.json $HOME/.config/gcloud/
+        
+        # List all files
+        echo "Files in home directory:"
+        find $HOME -type f | sort
+        
+        echo "Files in workspace:"
+        find /workspace -type f | sort
 
   - id: "DBT Check"
     name: "python:3.11-slim"
-    entrypoint: sh
+    entrypoint: "sh"
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
       - 'GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)'
       - 'CLOUDSDK_API_ENDPOINT_OVERRIDES_IAM=https://iam.googleapis.com/'
       - 'CLOUDSDK_AUTH_ACCESS_TOKEN_FILE=/workspace/drive_token.txt'
-      - 'GOOGLE_APPLICATION_CREDENTIALS=~/.config/gcloud/application_default_credentials.json'
+      - 'GOOGLE_APPLICATION_CREDENTIALS=/workspace/.google/application_default_credentials.json'
     args:
       - "-c"
       - |
@@ -109,6 +125,15 @@ steps:
         
         # Set token as environment variable directly in the step
         export DBT_BIGQUERY_TOKEN=$(cat /workspace/drive_token.txt)
+        
+        # Create home directory config
+        mkdir -p $HOME/.config/gcloud/
+        cp /workspace/.google/application_default_credentials.json $HOME/.config/gcloud/
+        
+        echo "Checking ADC file locations:"
+        echo "GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
+        ls -la $GOOGLE_APPLICATION_CREDENTIALS || echo "File not found at GOOGLE_APPLICATION_CREDENTIALS"
+        ls -la $HOME/.config/gcloud/application_default_credentials.json || echo "File not found in HOME/.config/gcloud"
         
         dbt --version
         echo "Contents of profiles.yml before running dbt:"
@@ -123,13 +148,13 @@ steps:
 
   - id: "DBT Run"
     name: "python:3.11-slim"
-    entrypoint: sh
+    entrypoint: "sh"
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
       - 'GOOGLE_OAUTH_TOKEN=$(cat /workspace/drive_token.txt)'
       - 'CLOUDSDK_API_ENDPOINT_OVERRIDES_IAM=https://iam.googleapis.com/'
       - 'CLOUDSDK_AUTH_ACCESS_TOKEN_FILE=/workspace/drive_token.txt'
-      - 'GOOGLE_APPLICATION_CREDENTIALS=~/.config/gcloud/application_default_credentials.json'
+      - 'GOOGLE_APPLICATION_CREDENTIALS=/workspace/.google/application_default_credentials.json'
     args:
       - "-c"
       - |
@@ -137,6 +162,25 @@ steps:
         
         # Set token as environment variable directly in the step
         export DBT_BIGQUERY_TOKEN=$(cat /workspace/drive_token.txt)
+        
+        # Create home directory config
+        mkdir -p $HOME/.config/gcloud/
+        cp /workspace/.google/application_default_credentials.json $HOME/.config/gcloud/
+        
+        # List all files for debugging
+        echo "Files in home directory:"
+        find $HOME -type f | sort
+        
+        echo "Files in workspace:"
+        find /workspace -type f | sort
+        
+        echo "Files in current directory:"
+        ls -la
+        
+        echo "Checking ADC file existence:"
+        echo "GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
+        ls -la $GOOGLE_APPLICATION_CREDENTIALS || echo "File not found at GOOGLE_APPLICATION_CREDENTIALS path"
+        ls -la $HOME/.config/gcloud/application_default_credentials.json || echo "File not found in HOME/.config/gcloud"
         
         dbt deps --profile dbt_sample_project
         dbt run --profile dbt_sample_project
