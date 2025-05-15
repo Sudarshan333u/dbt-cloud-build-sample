@@ -4,7 +4,7 @@ dbt_sample_project:
     raw:
       type: bigquery
       method: service-account
-      keyfile: /workspace/dbt_sample_project/sa-key.json
+      keyfile: /workspace/.dbt/sa-key.json
       location: US
       project: earnest-beacon-455013-n6
 # dataset left raw to allow for tag based selection override
