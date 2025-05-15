@@ -123,8 +123,6 @@ steps:
         export DBT_BIGQUERY_TOKEN=$(cat /workspace/drive_token.txt)
         
         echo "Checking ADC file location:"
-        echo "GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
-        ls -la $GOOGLE_APPLICATION_CREDENTIALS || echo "File not found at GOOGLE_APPLICATION_CREDENTIALS"
         
         dbt --version
         echo "Contents of profiles.yml before running dbt:"
