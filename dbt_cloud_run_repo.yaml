@@ -134,6 +134,20 @@ steps:
     volumes:
       - name: virtual_env
         path: /.venv
+  - id: "List All Files"
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+          echo "Listing files in /workspace:"
+          ls -R /workspace
+
+          echo "Listing files in home directory:"
+          ls -R ~/
+
+          echo "Listing ADC credentials if any:"
+          find / -name application_default_credentials.json 2>/dev/null
 
   - id: "DBT Run"
     name: "python:3.11-slim"
