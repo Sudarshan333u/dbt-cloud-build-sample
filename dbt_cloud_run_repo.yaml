@@ -162,8 +162,6 @@ steps:
         ls -la
         
         echo "Checking ADC file existence:"
-        echo "GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
-        ls -la $GOOGLE_APPLICATION_CREDENTIALS || echo "File not found at GOOGLE_APPLICATION_CREDENTIALS path"
         
         dbt deps --profile dbt_sample_project
         dbt run --profile dbt_sample_project
