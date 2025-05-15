@@ -28,33 +28,7 @@ steps:
 
         
 
-  - id: "Patch profiles.yml"
-    name: "gcr.io/cloud-builders/gcloud"
-    entrypoint: bash
-    args:
-      - "-c"
-      - |
-        echo "🔧 Updating keyfile path in profiles.yml"
-        sed -i 's|keyfile:.*|keyfile: /workspace/.dbt/sa-key.json|' /workspace/.dbt/profiles.yml || echo "⚠️ Warning: keyfile line not found to update"
-
-  - id: "Print key.yml"
-    name: "gcr.io/cloud-builders/gcloud"
-    entrypoint: bash
-    args:
-      - "-c"
-      - |
-        echo "📄 Contents of profiles.yml after patching:"
-        cat /workspace/.dbt/sa-key.json
-
-  - id: "Print profiles.yml"
-    name: "gcr.io/cloud-builders/gcloud"
-    entrypoint: bash
-    args:
-      - "-c"
-      - |
-        echo "📄 Contents of profiles.yml after patching:"
-        cat /workspace/.dbt/profiles.yml
-
+  
   - id: "debug workspace"
     name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
