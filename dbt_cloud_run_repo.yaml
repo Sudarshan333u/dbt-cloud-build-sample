@@ -94,8 +94,15 @@ steps:
           echo "Listing all models:"
           dbt ls
 
+  - id: "Upload Manifest to GCS"
+    name: "gcr.io/cloud-builders/gsutil"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
           echo "Uploading manifest to GCS..."
           gsutil cp /workspace/target/manifest.json gs://$_MANIFEST_BUCKET_NAME/full_manifest.json
+
 options:
   logStreamingOption: STREAM_ON
   logging: CLOUD_LOGGING_ONLY
