@@ -4,7 +4,7 @@
 SELECT
   greeting_text,
   run_timestamp
-FROM {{ ref('greeting_summary') }}
+FROM {{ source('raw_us', 'greeting_summary') }}
 
 WHERE
   greeting_text IS NOT NULL
