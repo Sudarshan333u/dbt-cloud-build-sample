@@ -55,14 +55,6 @@ steps:
       - name: virtual_env
         path: /.venv
 
-  - id: "Save Raw Layer Manifest"
-    name: "gcr.io/cloud-builders/gsutil"
-    entrypoint: bash
-    args:
-      - "-c"
-      - |
-        mkdir -p /workspace/manifests
-        cp /workspace/target/manifest.json /workspace/manifests/raw_layer_manifest.json
 
   - id: "DBT Run Hydrated"
     name: "python:3.11-slim"
@@ -88,22 +80,21 @@ steps:
       - name: virtual_env
         path: /.venv
 
-  - id: "Save Hydrated Layer Manifest"
-    name: "gcr.io/cloud-builders/gsutil"
-    entrypoint: bash
+
+  - id: "Log Models and Upload Manifest"
+    name: "python:3.11-slim"
+    entrypoint: sh
+    env:
+      - 'DBT_PROFILES_DIR=/workspace/.dbt/'
     args:
       - "-c"
       - |
-        cp /workspace/target/manifest.json /workspace/manifests/hydrated_layer_manifest.json
+          . .venv/bin/activate
+          echo "Listing all models:"
+          dbt ls
 
-  - id: "Upload Manifests to GCS"
-    name: "gcr.io/cloud-builders/gsutil"
-    entrypoint: bash
-    args:
-      - "-c"
-      - |
-        gsutil cp /workspace/manifests/*.json gs://$_MANIFEST_BUCKET_NAME/
-
+          echo "Uploading manifest to GCS..."
+          gsutil cp /workspace/target/manifest.json gs://$_MANIFEST_BUCKET_NAME/full_manifest.json
 options:
   logStreamingOption: STREAM_ON
   logging: CLOUD_LOGGING_ONLY
