@@ -9,5 +9,4 @@ sources:
     tables:
       - name: greeting_summary
 
-      - name: raw_supply_chain_node
 

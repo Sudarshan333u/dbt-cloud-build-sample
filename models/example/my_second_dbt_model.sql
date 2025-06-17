@@ -1,4 +1,4 @@
--- models/my_first_dbt_model.sql
+-- models/my_fiaarst_dbt_msodel.sql
 
 {{ config(materialized='table') }}
 SELECT
