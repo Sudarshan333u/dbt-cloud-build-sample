@@ -11,9 +11,6 @@ steps:
         pip install uv
         uv venv
         uv pip install -r pyproject.toml
-    volumes:
-      - name: virtual_env
-        path: /.venv
 
   - id: "Retrieve Secret"
     name: "gcr.io/cloud-builders/gcloud"
@@ -25,13 +22,14 @@ steps:
           --secret=$_SECRET_NAME \
           --project=$_PROJECT_NUMBER > /workspace/.dbt/sa-key.json
 
-  - id: "debug workspace"
+  - id: "Debug Workspace"
     name: 'gcr.io/cloud-builders/gcloud'
-    entrypoint: 'bash'
+    entrypoint: bash
     args:
       - '-c'
       - 'ls -R /workspace'
 
+  # RAW LAYER
   - id: "DBT Run Raw"
     name: "python:3.11-slim"
     entrypoint: sh
@@ -50,12 +48,18 @@ steps:
         export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
 
         dbt deps 
-        dbt run --select tag:raw_us    
-    volumes:
-      - name: virtual_env
-        path: /.venv
+        dbt run --select tag:raw_us
 
+  - id: "Save Raw Manifest"
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        mkdir -p /workspace/manifest
+        cp /workspace/target/manifest.json /workspace/manifest/raw_manifest.json
 
+  # HYDRATED LAYER
   - id: "DBT Run Hydrated"
     name: "python:3.11-slim"
     entrypoint: sh
@@ -75,33 +79,55 @@ steps:
 
         dbt deps
         dbt snapshot --select tag:hydrated_us
-        dbt run --select tag:hydrated_us    
-    volumes:
-      - name: virtual_env
-        path: /.venv
+        dbt run --select tag:hydrated_us
 
+  - id: "Save Hydrated Manifest"
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        cp /workspace/target/manifest.json /workspace/manifest/hydrated_manifest.json
 
-  - id: "Log Models and Upload Manifest"
+  # SILVER LAYER (if applicable)
+  - id: "DBT Run Silver"
     name: "python:3.11-slim"
     entrypoint: sh
     env:
       - 'DBT_PROFILES_DIR=/workspace/.dbt/'
-      - 'DBT_DATASET=hydrated_us'
+      - 'DBT_DATASET=silver_us'
     args:
       - "-c"
       - |
-          . .venv/bin/activate
-          echo "Listing all models:"
-          dbt ls
+        . .venv/bin/activate
+        apt-get update && apt-get install -y git
+        if [ -z "$_GOOGLE_CLOUD_PROJECT" ]; then
+          echo "No project id provided. Please set the _GOOGLE_CLOUD_PROJECT substitution variable."
+          exit 1
+        fi
+        export GOOGLE_CLOUD_PROJECT="$_GOOGLE_CLOUD_PROJECT"
 
-  - id: "Upload Manifest to GCS"
+        dbt deps
+        dbt run --select tag:silver_us
+
+  - id: "Save Silver Manifest"
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        cp /workspace/target/manifest.json /workspace/manifest/silver_manifest.json
+
+ 
+  # UPLOAD ALL MANIFESTS
+  - id: "Upload All Manifests to GCS"
     name: "gcr.io/cloud-builders/gsutil"
     entrypoint: bash
     args:
       - "-c"
       - |
-          echo "Uploading manifest to GCS..."
-          gsutil cp /workspace/target/manifest.json gs://$_MANIFEST_BUCKET_NAME/full_manifest.json
+        echo "Uploading all manifests to GCS..."
+        gsutil cp /workspace/manifest/*.json gs://$_MANIFEST_BUCKET_NAME/
 
 options:
   logStreamingOption: STREAM_ON

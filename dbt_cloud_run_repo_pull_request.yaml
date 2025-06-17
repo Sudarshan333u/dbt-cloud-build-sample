@@ -11,9 +11,6 @@ steps:
         pip install uv
         uv venv
         uv pip install -r pyproject.toml
-    volumes:
-      - name: virtual_env
-        path: /.venv
 
   - id: "Retrieve Secret"
     name: "gcr.io/cloud-builders/gcloud"
@@ -32,14 +29,16 @@ steps:
       - "-c"
       - "ls -R /workspace"
 
-  - id: "Download Manifest from Main"
+  - id: "Download Manifests from Main"
     name: "gcr.io/cloud-builders/gsutil"
     entrypoint: bash
     args:
       - "-c"
       - |
         mkdir -p /workspace/manifest_folder
-        gsutil cp gs://$_MANIFEST_BUCKET_NAME/full_manifest.json /workspace/manifest_folder/manifest.json
+        gsutil cp gs://$_MANIFEST_BUCKET_NAME/raw_manifest.json /workspace/manifest_folder/raw_manifest.json
+        gsutil cp gs://$_MANIFEST_BUCKET_NAME/hydrated_manifest.json /workspace/manifest_folder/hydrated_manifest.json
+        gsutil cp gs://$_MANIFEST_BUCKET_NAME/silver_manifest.json /workspace/manifest_folder/silver_manifest.json
 
   - id: "Recreate PR Dataset"
     name: "gcr.io/cloud-builders/gcloud"
@@ -62,13 +61,15 @@ steps:
       - |
         . .venv/bin/activate
         dbt deps
-        dbt run --select tag:raw_us,state:modified --defer --state /workspace/manifest_folder
-        dbt run --select tag:hydrated_us,state:modified --defer --state /workspace/manifest_folder
-        dbt run --select tag:silver_us,state:modified --defer --state /workspace/manifest_folder
 
-    volumes:
-      - name: virtual_env
-        path: /.venv
+        echo "Running changed RAW models..."
+        dbt run --select tag:raw_us,state:modified --defer --state /workspace/manifest_folder/raw_manifest.json
+
+        echo "Running changed HYDRATED models..."
+        dbt run --select tag:hydrated_us,state:modified --defer --state /workspace/manifest_folder/hydrated_manifest.json
+
+        echo "Running changed SILVER models..."
+        dbt run --select tag:silver_us,state:modified --defer --state /workspace/manifest_folder/silver_manifest.json
 
 options:
   logStreamingOption: STREAM_ON
