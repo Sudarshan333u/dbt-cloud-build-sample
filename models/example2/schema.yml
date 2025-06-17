@@ -1,0 +1,13 @@
+
+version: 2
+
+sources:
+
+  - name: raw_us
+    database: earnest-beacon-455013-n6 
+    schema: raw_us
+    tables:
+      - name: greeting_summary
+
+      - name: raw_supply_chain_node
+

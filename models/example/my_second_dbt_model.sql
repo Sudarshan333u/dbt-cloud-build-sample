@@ -4,6 +4,6 @@
 SELECT
   greeting_text,
   run_timestamp
-FROM {{ source('raw_us', 'source_table_1') }}
+FROM {{ ref('my_first_dbt_model') }}
 WHERE
   greeting_text IS NOT NULL

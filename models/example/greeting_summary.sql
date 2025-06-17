@@ -1,11 +1,11 @@
 {{ config(materialized='table') }}
 
 SELECT
-  greeting_text,
-  COUNT(*) AS greeting_count,
-  MIN(run_timestamp) AS first_seen,
-  MAX(run_timestamp) AS last_seen
+  a.greeting_text
 FROM
-  {{ ref('my_first_dbt_model') }}
-GROUP BY
-  greeting_text
+  {{ ref('my_first_dbt_model') }} a
+
+  JOIN 
+  {{ ref('my_second_dbt_model') }} b
+  on 
+  a.greeting_text=b.greeting_text
