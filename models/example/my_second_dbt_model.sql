@@ -1,4 +1,4 @@
--- models/my_fiaarst_dbt_jjmsodel.sql
+-- models/my_fiaarst_dddbt_jjmsodel.sql
 
 {{ config(materialized='table') }}
 SELECT
