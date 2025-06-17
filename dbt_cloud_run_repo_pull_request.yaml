@@ -1,0 +1,82 @@
+steps:
+
+  - id: "Install Deps"
+    name: "python:3.11-slim"
+    entrypoint: sh
+    args:
+      - "-c"
+      - |
+        apt-get update -y
+        apt-get install -y git
+        pip install uv
+        uv venv
+        uv pip install -r pyproject.toml
+    volumes:
+      - name: virtual_env
+        path: /.venv
+
+  - id: "Retrieve Secret"
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        gcloud secrets versions access latest \
+          --secret=$_SECRET_NAME \
+          --project=$_PROJECT_NUMBER > /workspace/.dbt/sa-key.json
+
+  - id: "Debug Workspace"
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: bash
+    args:
+      - "-c"
+      - "ls -R /workspace"
+
+  - id: "Download Manifest from Main"
+    name: "gcr.io/cloud-builders/gsutil"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        mkdir -p /workspace/manifest_folder
+        gsutil cp gs://$_MANIFEST_BUCKET_NAME/full_manifest.json /workspace/manifest_folder/manifest.json
+
+  - id: "Recreate PR Dataset"
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        echo "Recreating dataset: PR_${_PR_NUMBER}"
+        bq --location=US rm -f -d -r earnest-beacon-455013-n6:PR_${_PR_NUMBER} || true
+        bq --location=US mk -d --description="Temporary dataset for PR validation" earnest-beacon-455013-n6:PR_${_PR_NUMBER}
+
+  - id: "Run All Changed Models in PR Dataset"
+    name: "python:3.11-slim"
+    entrypoint: sh
+    env:
+      - "DBT_PROFILES_DIR=/workspace/.dbt/"
+      - "DBT_DATASET=PR_${_PR_NUMBER}"
+    args:
+      - "-c"
+      - |
+        . .venv/bin/activate
+        dbt deps
+        dbt run --select tag:raw_us,state:modified --defer --state /workspace/manifest_folder
+        dbt run --select tag:hydrated_us,state:modified --defer --state /workspace/manifest_folder
+        dbt run --select tag:silver_us,state:modified --defer --state /workspace/manifest_folder
+
+volumes:
+  - name: virtual_env
+    path: /.venv
+
+options:
+  logStreamingOption: STREAM_ON
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _GOOGLE_CLOUD_PROJECT: "earnest-beacon-455013-n6"
+  _SECRET_NAME: "test2"
+  _PROJECT_NUMBER: "195563638104"
+  _MANIFEST_BUCKET_NAME: "manifest_bucket6172025"
+  _PR_NUMBER: '${_PR_NUMBER}'
