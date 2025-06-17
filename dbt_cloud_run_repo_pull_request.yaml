@@ -35,10 +35,12 @@ steps:
     args:
       - "-c"
       - |
-        mkdir -p /workspace/manifest_folder
-        gsutil cp gs://$_MANIFEST_BUCKET_NAME/raw_manifest.json /workspace/manifest_folder/raw_manifest.json
-        gsutil cp gs://$_MANIFEST_BUCKET_NAME/hydrated_manifest.json /workspace/manifest_folder/hydrated_manifest.json
-        gsutil cp gs://$_MANIFEST_BUCKET_NAME/silver_manifest.json /workspace/manifest_folder/silver_manifest.json
+        mkdir -p /workspace/manifest_raw_folder
+        mkdir -p /workspace/manifest_hydrated_folder
+        mkdir -p /workspace/manifest_silver_folder
+        gsutil cp gs://$_MANIFEST_BUCKET_NAME/raw_manifest.json /workspace/manifest_raw_folder/manifest.json
+        gsutil cp gs://$_MANIFEST_BUCKET_NAME/hydrated_manifest.json /workspace/manifest_hydrated_folder/manifest.json
+        gsutil cp gs://$_MANIFEST_BUCKET_NAME/silver_manifest.json /workspace/manifest_silver_folder/manifest.json
 
   - id: "Recreate PR Dataset"
     name: "gcr.io/cloud-builders/gcloud"
@@ -63,13 +65,13 @@ steps:
         dbt deps
 
         echo "Running changed RAW models..."
-        dbt run --select tag:raw_us,state:modified --defer --state /workspace/manifest_folder/raw_manifest.json
+        dbt run --select tag:raw_us,state:modified --defer --state /workspace/manifest_raw_folder/
 
         echo "Running changed HYDRATED models..."
-        dbt run --select tag:hydrated_us,state:modified --defer --state /workspace/manifest_folder/hydrated_manifest.json
+        dbt run --select tag:hydrated_us,state:modified --defer --state /workspace/manifest_hydrated_folder/
 
         echo "Running changed SILVER models..."
-        dbt run --select tag:silver_us,state:modified --defer --state /workspace/manifest_folder/silver_manifest.json
+        dbt run --select tag:silver_us,state:modified --defer --state /workspace/manifest_silver_folder/
 
 options:
   logStreamingOption: STREAM_ON
