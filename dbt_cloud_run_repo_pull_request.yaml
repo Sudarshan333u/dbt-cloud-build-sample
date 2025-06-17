@@ -66,9 +66,9 @@ steps:
         dbt run --select tag:hydrated_us,state:modified --defer --state /workspace/manifest_folder
         dbt run --select tag:silver_us,state:modified --defer --state /workspace/manifest_folder
 
-volumes:
-  - name: virtual_env
-    path: /.venv
+    volumes:
+      - name: virtual_env
+        path: /.venv
 
 options:
   logStreamingOption: STREAM_ON
