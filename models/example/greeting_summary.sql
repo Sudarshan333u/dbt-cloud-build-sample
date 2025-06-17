@@ -1,7 +1,8 @@
 {{ config(materialized='table') }}
 
 SELECT
-  a.greeting_text
+  a.greeting_text,
+  a.run_timestamp
 FROM
   {{ ref('my_first_dbt_model') }} a
 
