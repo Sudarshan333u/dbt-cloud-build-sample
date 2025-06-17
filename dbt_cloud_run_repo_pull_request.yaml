@@ -79,4 +79,3 @@ substitutions:
   _SECRET_NAME: "test2"
   _PROJECT_NUMBER: "195563638104"
   _MANIFEST_BUCKET_NAME: "manifest_bucket6172025"
-  _PR_NUMBER: '${_PR_NUMBER}'
